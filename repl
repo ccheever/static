@@ -1,0 +1,2 @@
+#!/usr/bin/env sh
+node --expose-gc --experimental-repl-await --experimental-import-meta-resolve --experimental-wasm-modules --experimental-json-modules --experimental-loader ./static-loader.mjs -i -e "require('project-repl')('.', (x) => require(x));" $*
