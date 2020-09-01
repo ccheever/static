@@ -1,9 +1,6 @@
-import CrossFetch from 'cross-fetch';
-import * as static from './static';
+import fetch from 'cross-fetch';
 
-console.log({ static });
-
-let { fetch } = CrossFetch;
+import * as staticlib from './staticlib.js';
 
 /**
  * 
