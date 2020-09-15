@@ -28,6 +28,21 @@ function isRemoteLoadUrl(url) {
   }
 }
 
+function getRemoteLoadInfo(specifier) {
+  let remoteLoad = specifier.match(remoteLoadRegex);
+  if (remoteLoad) {
+    let url = remoteLoadToUrl(remoteLoad);
+    let { protocol, address, fragment } = remoteLoad.groups;
+    return {
+      protocol,
+      address,
+      fragment,
+      specifier,
+      url,
+    };
+  }
+}
+
 function remoteLoadToUrl(remoteLoad) {
   if (!remoteLoad) {
     return null;
@@ -182,6 +197,7 @@ export async function getFormat(url, context, defaultGetFormat) {
 export async function getSource(url, context, defaultGetSource) {
   // For JavaScript to be loaded over the network, we need to fetch and
   // return it.
+
   let remoteLoad = url.match(remoteLoadRegex);
   if (remoteLoad) {
     let fetchableUrl = remoteLoadToUrl(remoteLoad);
@@ -189,6 +205,7 @@ export async function getSource(url, context, defaultGetSource) {
     console.log(`Fetching ${fetchableUrl} because of ${url}`);
 
     let response = await fetch(fetchableUrl);
+
     return { source: await response.text() };
   }
 

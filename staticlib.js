@@ -1,8 +1,13 @@
+let crypto = require('crypto');
+let fs = require('fs');
 let os = require('os');
 let path = require('path');
-let fs = require('fs');
 
 let { fetch } = require('cross-fetch');
+
+function md5(x) {
+  return crypto.createHash('md5').update(x).digest('hex');
+}
 
 let _staticDir = null;
 function staticDir() {
@@ -25,7 +30,7 @@ async function cacheDb() {
     _db = new sqlite3.Database(cacheFile());
     await _dbRun(
       _db,
-      `CREATE TABLE IF NOT EXISTS files (specifiedUrl TEXT, httpUrl TEXT, content TEXT, hash TEXT, fetchedTime TEXT, etag TEXT, responseHeaders TEXT);`
+      `CREATE TABLE IF NOT EXISTS files (importType TEXT, specifiedUrl TEXT, httpUrl TEXT, content TEXT, contentHash TEXT, fetchedTime TEXT, etag TEXT, responseHeaders TEXT, responseDate TEXT);`
     );
     await _dbRun(_db, `CREATE TABLE IF NOT EXISTS staticMeta (version INTEGER)`);
   }
@@ -87,19 +92,76 @@ async function dbRun(...args) {
   return await _dbRun(db, ...args);
 }
 
-async function store(specifiedUrl, httpUrl, content, hash, fetchedTime, etag, responseHeaders) {
-  _db.run(
-    `INSERT INTO files (specifiedUrl, httpUrl, content, hash, fetchedTime, etag, responseHeaders) VALUES (?, ?, ?, ?, ?, ?)`,
-    [specifiedUrl, httpUrl, hash, fetchedTime, etag, responseHeaders],
+async function store({
+  importType,
+  specifiedUrl,
+  httpUrl,
+  content,
+  contentHash,
+  fetchedTime,
+  etag,
+  responseHeaders,
+}) {
+  await dbRun(
+    `INSERT INTO files (importType, specifiedUrl, httpUrl, content, contentHash, fetchedTime, etag, responseHeaders, responseDate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      importType,
+      specifiedUrl,
+      httpUrl,
+      content,
+      contentHash,
+      fetchedTime,
+      etag,
+      responseHeaders,
+      responseDate,
+    ],
     (err, result)
   );
-  _db.finalize();
 }
 
-async function fetchFile(url) {
-  let response = await fetch(url); // TODO: Add headers
+async function getFile({ specifiedUrl, httpUrl, importType }) {
+  // For now, assume everything is static
+
+  // First, check database to see if file is already there
+  let cachedResult = await dbGet(
+    'SELECT * FROM files WHERE specifiedUrl = ? AND httpUrl = ? AND type = ?',
+    specifiedUrl
+  );
+  if (cachedResult) {
+    return cachedResult;
+  } else {
+    console.log(`Fetching ${importType}: ${specifiedUrl} --> ${httpUrl}`);
+    let { headers, text } = await fetchFile(httpUrl);
+    let fetchedTime = Date.now();
+    let contentHash = md5(text);
+    let responseHeaders = JSON.stringify(headers);
+    let responseDate = headers.get('date');
+    let etag = headers.get('etag');
+    let result = {
+      importType,
+      specifiedUrl,
+      httpUrl,
+      context: text,
+      contentHash,
+      fetchedTime: Date.now(),
+      etag,
+      responseHeaders,
+      responseDate,
+    };
+    await store(result);
+    return result;
+  }
+}
+
+async function fetchFile(httpUrl) {
+  let response = await fetch(httpUrl); // TODO: Add headers
   let headers = response.headers();
   let text = response.text();
+
+  return {
+    headers,
+    text,
+  };
 }
 
 module.exports = {
