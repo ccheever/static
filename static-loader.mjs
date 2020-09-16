@@ -1,6 +1,6 @@
 import fetch from 'cross-fetch';
 
-import * as staticlib from './staticlib.js';
+import staticlib from './staticlib.js';
 
 /**
  * 
@@ -33,12 +33,34 @@ function getRemoteLoadInfo(specifier) {
   if (remoteLoad) {
     let url = remoteLoadToUrl(remoteLoad);
     let { protocol, address, fragment } = remoteLoad.groups;
+
+    let importType;
+    switch (protocol) {
+      case 'static':
+      case 'statici':
+        importType = 'static';
+        break;
+      case 'npm':
+        importType = 'npm';
+        break;
+      case 'app':
+      case 'appi':
+        importType = 'app';
+      case 'http':
+      case 'https':
+        importType = 'http';
+        break;
+      default:
+        importType = null;
+        break;
+    }
     return {
       protocol,
       address,
       fragment,
       specifier,
       url,
+      importType,
     };
   }
 }
@@ -96,7 +118,7 @@ export async function resolve(specifier, context, defaultResolve) {
     };
   } else if (parentRemoteLoad) {
     return {
-      url: specifier,
+      url: new URL(specifier, parentURL).href,
     };
   } else {
     return defaultResolve(specifier, context, defaultResolve);
@@ -198,15 +220,20 @@ export async function getSource(url, context, defaultGetSource) {
   // For JavaScript to be loaded over the network, we need to fetch and
   // return it.
 
-  let remoteLoad = url.match(remoteLoadRegex);
-  if (remoteLoad) {
-    let fetchableUrl = remoteLoadToUrl(remoteLoad);
+  // let remoteLoad = url.match(remoteLoadRegex);
+  let remoteLoadInfo = getRemoteLoadInfo(url);
+  if (remoteLoadInfo) {
+    // console.log({ remoteLoadInfo });
+    // console.log(`Fetching ${remoteLoadInfo.url} because of ${url}`);
+    let result = await staticlib.getFile({
+      specifiedUrl: url,
+      httpUrl: remoteLoadInfo.url,
+      importType: remoteLoadInfo.importType,
+    });
+    // console.log({ result });
 
-    console.log(`Fetching ${fetchableUrl} because of ${url}`);
-
-    let response = await fetch(fetchableUrl);
-
-    return { source: await response.text() };
+    return { source: result.content };
+    // return { source: await response.text() };
   }
 
   // Let Node.js handle all other URLs.

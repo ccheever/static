@@ -1,2 +1,4 @@
 #!/usr/bin/env sh
+
 node --expose-gc --experimental-repl-await --experimental-import-meta-resolve --experimental-wasm-modules --experimental-modules --experimental-json-modules --no-warnings --experimental-loader ./static-loader.mjs main.mjs
+#node --expose-gc --experimental-repl-await --experimental-import-meta-resolve --experimental-wasm-modules --experimental-modules --experimental-json-modules --no-warnings --experimental-loader ./https-loader.mjs main.mjs

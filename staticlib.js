@@ -2,6 +2,7 @@ let crypto = require('crypto');
 let fs = require('fs');
 let os = require('os');
 let path = require('path');
+let sqlite3 = require('sqlite3');
 
 let { fetch } = require('cross-fetch');
 
@@ -101,6 +102,7 @@ async function store({
   fetchedTime,
   etag,
   responseHeaders,
+  responseDate,
 }) {
   await dbRun(
     `INSERT INTO files (importType, specifiedUrl, httpUrl, content, contentHash, fetchedTime, etag, responseHeaders, responseDate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -114,8 +116,7 @@ async function store({
       etag,
       responseHeaders,
       responseDate,
-    ],
-    (err, result)
+    ]
   );
 }
 
@@ -124,26 +125,30 @@ async function getFile({ specifiedUrl, httpUrl, importType }) {
 
   // First, check database to see if file is already there
   let cachedResult = await dbGet(
-    'SELECT * FROM files WHERE specifiedUrl = ? AND httpUrl = ? AND type = ?',
-    specifiedUrl
+    'SELECT * FROM files WHERE specifiedUrl = ? AND httpUrl = ? AND importType = ?',
+    specifiedUrl,
+    httpUrl,
+    importType
   );
   if (cachedResult) {
     return cachedResult;
   } else {
     console.log(`Fetching ${importType}: ${specifiedUrl} --> ${httpUrl}`);
-    let { headers, text } = await fetchFile(httpUrl);
+    let response = await fetch(httpUrl);
+    let headers = response.headers;
     let fetchedTime = Date.now();
+    let text = await response.text();
     let contentHash = md5(text);
-    let responseHeaders = JSON.stringify(headers);
+    let responseHeaders = JSON.stringify(headers.raw());
     let responseDate = headers.get('date');
     let etag = headers.get('etag');
     let result = {
       importType,
       specifiedUrl,
       httpUrl,
-      context: text,
+      content: text,
       contentHash,
-      fetchedTime: Date.now(),
+      fetchedTime,
       etag,
       responseHeaders,
       responseDate,
@@ -155,7 +160,6 @@ async function getFile({ specifiedUrl, httpUrl, importType }) {
 
 async function fetchFile(httpUrl) {
   let response = await fetch(httpUrl); // TODO: Add headers
-  let headers = response.headers();
   let text = response.text();
 
   return {
@@ -173,4 +177,5 @@ module.exports = {
   _dbRun,
   _dbGet,
   _dbAll,
+  getFile,
 };
